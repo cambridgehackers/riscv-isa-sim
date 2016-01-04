@@ -63,6 +63,8 @@ private:
   bool debug;
   bool log;
   bool histogram_enabled; // provide a histogram of PCs
+  const char *bootrom;
+  size_t bootromsz;
 
   // memory-mapped I/O routines
   bool mmio_load(reg_t addr, size_t len, uint8_t* bytes);

@@ -8,6 +8,11 @@
 #include <cstdlib>
 #include <cassert>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/mman.h>
 
 volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
@@ -22,8 +27,10 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
              const std::vector<std::string>& args)
   : //htif(new htif_isasim_t(this, args)), // [sizhuo] create HTIF later 
 	procs(std::max(nprocs, size_t(1))),
-    rtc(0), current_step(0), current_proc(0), debug(false)
+	rtc(0), current_step(0), current_proc(0), debug(false), bootrom(0), bootromsz(0)
 {
+  fprintf(stderr, "sim_t::sim_t()\n");
+
   //signal(SIGINT, &handle_signal); // register this later
 
   // allocate target machine's memory, shrinking it as necessary
@@ -50,6 +57,21 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
     procs[i] = new processor_t(isa, this, i);
 	// [sizhuo] manually reset processors (we don't reset by waiting for write on MRESET)
 	procs[i]->reset(false);
+  }
+
+  int fd = open("bootrom.bin", O_RDONLY);
+  if (fd > 0) {
+    struct stat statbuf;
+    int status = fstat(fd, &statbuf);
+    fprintf(stderr, "fstat status %d size %ld\n", status, statbuf.st_size);
+    if (status == 0) {
+      bootrom = (const char *)mmap(0, statbuf.st_size, PROT_READ, MAP_SHARED, fd, 0);
+      bootromsz = statbuf.st_size;
+      fprintf(stderr, "mapped bootrom at %p (%ld bytes)\n", bootrom, bootromsz);
+    }
+    close(fd);
+  } else {
+    fprintf(stderr, "Could not open bootrom.bin\n");
   }
 
   // [sizhuo] register enq fromhost FIFOs (must be done after procs created)
@@ -205,6 +227,14 @@ void sim_t::set_procs_debug(bool value)
 
 bool sim_t::mmio_load(reg_t addr, size_t len, uint8_t* bytes)
 {
+
+  if (bootrom && bootrom != MAP_FAILED) {
+    if ((addr < (memsz + bootromsz)) && (bytes != 0)) {
+      memcpy(bytes, bootrom + (addr - memsz), len);
+      return true;
+    }
+  }
+
   return false;
 }
 
