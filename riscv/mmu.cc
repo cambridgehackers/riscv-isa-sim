@@ -63,7 +63,7 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes)
     memcpy(bytes, mem + paddr, len);
     if (!tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD))
       refill_tlb(addr, paddr, LOAD);
-  } else if (!proc || !proc->sim->mmio_load(addr, len, bytes)) {
+  } else if (!proc || !proc->sim->mmio_load(paddr, len, bytes)) {
     throw trap_load_access_fault(addr);
   }
 }
@@ -75,7 +75,7 @@ void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes)
     memcpy(mem + paddr, bytes, len);
     if (!tracer.interested_in_range(paddr, paddr + PGSIZE, STORE))
       refill_tlb(addr, paddr, STORE);
-  } else if (!proc || !proc->sim->mmio_store(addr, len, bytes)) {
+  } else if (!proc || !proc->sim->mmio_store(paddr, len, bytes)) {
     throw trap_store_access_fault(addr);
   }
 }
