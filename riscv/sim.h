@@ -8,6 +8,7 @@
 #include <memory>
 #include "processor.h"
 #include "mmu.h"
+#include <bpiflash.h>
 
 class htif_isasim_t;
 
@@ -65,6 +66,7 @@ private:
   bool histogram_enabled; // provide a histogram of PCs
   const char *bootrom;
   size_t bootromsz;
+  BpiFlash *bpiFlash;
 
   // memory-mapped I/O routines
   bool mmio_load(reg_t addr, size_t len, uint8_t* bytes);

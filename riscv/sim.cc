@@ -67,12 +67,14 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
     if (status == 0) {
       bootrom = (const char *)mmap(0, statbuf.st_size, PROT_READ, MAP_SHARED, fd, 0);
       bootromsz = statbuf.st_size;
-      fprintf(stderr, "mapped bootrom at %p (%ld bytes)\n", bootrom, bootromsz);
+      fprintf(stderr, "mapped bootrom at %p (%ld bytes) physaddr %lx\n", bootrom, bootromsz, memsz);
     }
     close(fd);
   } else {
     fprintf(stderr, "Could not open bootrom.bin\n");
   }
+
+  bpiFlash = new BpiFlash();
 
   // [sizhuo] register enq fromhost FIFOs (must be done after procs created)
   // and start HTIF by loading programs etc.
@@ -228,11 +230,28 @@ void sim_t::set_procs_debug(bool value)
 bool sim_t::mmio_load(reg_t addr, size_t len, uint8_t* bytes)
 {
 
+  //fprintf(stderr, "mmio_load addr=%llx len=%ld memsz=%x\n", (long long)addr, len, memsz);
   if (bootrom && bootrom != MAP_FAILED) {
-    if ((addr < (memsz + bootromsz)) && (bytes != 0)) {
+    if ((addr >= memsz) && (addr < (memsz + bootromsz)) && (bytes != 0)) {
       memcpy(bytes, bootrom + (addr - memsz), len);
       return true;
     }
+  }
+
+  // flash
+  if (addr >= 0x08000000 && addr < 0x10000000 && bpiFlash) {
+    reg_t offset = addr - 0x08000000;
+    bool unaligned = offset & 1;
+    if (unaligned) {
+      uint8_t tmp[2];
+      bpiFlash->read(offset & ~1, tmp);
+      bytes[0] = tmp[1];
+    } else {
+      for (size_t i = 0; i < len; i += 2) {
+	bpiFlash->read(offset + i, bytes + i);
+      }
+    }
+    return true;
   }
 
   return false;
@@ -240,5 +259,20 @@ bool sim_t::mmio_load(reg_t addr, size_t len, uint8_t* bytes)
 
 bool sim_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
 {
+  //fprintf(stderr, "mmio_store addr=%llx len=%ld memsz=%x\n", (long long)addr, len, memsz);
+  if (bootrom && bootrom != MAP_FAILED) {
+    if ((addr >= memsz) && (addr < (memsz + bootromsz)) && (bytes != 0)) {
+      //memcpy(bytes, bootrom + (addr - memsz), len);
+      return true;
+    }
+  }
+  // flash
+  if (addr >= 0x08000000 && addr < 0x10000000 && bpiFlash) {
+    for (size_t i = 0; i < len; i += 2) {
+      bpiFlash->write(addr - 0x08000000 + i, bytes + i);
+    }
+    return true;
+  }
+
   return false;
 }
