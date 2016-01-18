@@ -27,7 +27,7 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
              const std::vector<std::string>& args)
   : //htif(new htif_isasim_t(this, args)), // [sizhuo] create HTIF later 
 	procs(std::max(nprocs, size_t(1))),
-	rtc(0), current_step(0), current_proc(0), debug(false), bootrom(0), bootromsz(0)
+	rtc(0), current_step(0), current_proc(0), debug(false), bootrom(0), bootromsz(0), dtb(0), dtbsz(0)
 {
   fprintf(stderr, "sim_t::sim_t()\n");
 
@@ -74,7 +74,24 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
     fprintf(stderr, "Could not open bootrom.bin\n");
   }
 
-  bpiFlash = new BpiFlash();
+  fd = open("devicetree.dtb", O_RDONLY);
+  if (fd > 0) {
+    struct stat statbuf;
+    int status = fstat(fd, &statbuf);
+    fprintf(stderr, "fstat status %d size %ld\n", status, statbuf.st_size);
+    if (status == 0) {
+      dtb = (const char *)mmap(0, statbuf.st_size, PROT_READ, MAP_SHARED, fd, 0);
+      dtbsz = statbuf.st_size;
+      fprintf(stderr, "mapped dtb at %p (%ld bytes) physaddr %lx\n", dtb, dtbsz, memsz);
+    }
+    close(fd);
+  } else {
+    fprintf(stderr, "Could not open dtb.bin\n");
+  }
+
+  //bpiFlash = new BpiFlash();
+  bpiFlash = 0;
+  axiEth = new AxiEth();
 
   // [sizhuo] register enq fromhost FIFOs (must be done after procs created)
   // and start HTIF by loading programs etc.
@@ -232,23 +249,30 @@ bool sim_t::mmio_load(reg_t addr, size_t len, uint8_t* bytes)
 
   //fprintf(stderr, "mmio_load addr=%llx len=%ld memsz=%x\n", (long long)addr, len, memsz);
   if (bootrom && bootrom != MAP_FAILED) {
-    if ((addr >= memsz) && (addr < (memsz + bootromsz)) && (bytes != 0)) {
-      memcpy(bytes, bootrom + (addr - memsz), len);
+    if ((addr >= 0x0400000) && (addr < (0x04000000 + bootromsz)) && (bytes != 0)) {
+      memcpy(bytes, bootrom + (addr - 0x04000000), len);
+      return true;
+    }
+  }
+  if (dtb && dtb != MAP_FAILED) {
+    if ((addr >= 0x04100000) && (addr < (0x04100000 + dtbsz)) && (bytes != 0)) {
+      memcpy(bytes, dtb + (addr - 0x04100000), len);
       return true;
     }
   }
 
   // flash
-  if (addr >= 0x08000000 && addr < 0x10000000 && bpiFlash) {
-    reg_t offset = addr - 0x08000000;
-    bool unaligned = offset & 1;
+  if (addr >= 0x04200000 && addr < 0x04300000 && axiEth) {
+    reg_t offset = addr - 0x04200000;
+    bool unaligned = (offset & 3) || (len & 3);
     if (unaligned) {
       uint8_t tmp[2];
-      bpiFlash->read(offset & ~1, tmp);
+      fprintf(stderr, "%s:%d unaligned addr=%x len=%d\n", __FUNCTION__, __LINE__, addr, len);
+      axiEth->read(offset & ~1, tmp);
       bytes[0] = tmp[1];
     } else {
-      for (size_t i = 0; i < len; i += 2) {
-	bpiFlash->read(offset + i, bytes + i);
+      for (size_t i = 0; i < len; i += 4) {
+	axiEth->read(offset + i, bytes + i);
       }
     }
     return true;
@@ -261,15 +285,24 @@ bool sim_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
 {
   //fprintf(stderr, "mmio_store addr=%llx len=%ld memsz=%x\n", (long long)addr, len, memsz);
   if (bootrom && bootrom != MAP_FAILED) {
-    if ((addr >= memsz) && (addr < (memsz + bootromsz)) && (bytes != 0)) {
-      //memcpy(bytes, bootrom + (addr - memsz), len);
+    if ((addr >= 0x04000000) && (addr < (0x04000000 + bootromsz)) && (bytes != 0)) {
+      //memcpy(bytes, bootrom + (addr - 0x04000000), len);
+      return true;
+    }
+  }
+  if (dtb && dtb != MAP_FAILED) {
+    if ((addr >= 0x04100000) && (addr < (0x04100000 + dtbsz)) && (bytes != 0)) {
+      //memcpy(bytes, dtb + (addr - 0x04100000), len);
       return true;
     }
   }
   // flash
-  if (addr >= 0x08000000 && addr < 0x10000000 && bpiFlash) {
-    for (size_t i = 0; i < len; i += 2) {
-      bpiFlash->write(addr - 0x08000000 + i, bytes + i);
+  if (addr >= 0x04200000 && addr < 0x04300000 && axiEth) {
+    reg_t offset = addr - 0x04200000;
+    if ((offset & 3) || (len & 3))
+      fprintf(stderr, "%s:%d unaligned addr=%x len=%d\n", __FUNCTION__, __LINE__, addr, len);
+    for (size_t i = 0; i < len; i += 4) {
+      axiEth->write(addr - 0x04200000 + i, bytes + i);
     }
     return true;
   }
