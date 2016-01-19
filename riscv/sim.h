@@ -46,6 +46,7 @@ private:
  public:
   char* mem; // main memory
   size_t memsz; // memory size in bytes
+  int memfd;
   mmu_t* debug_mmu;  // debug port into main memory
  private:
   std::vector<processor_t*> procs;

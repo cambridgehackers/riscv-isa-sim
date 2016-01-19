@@ -13,6 +13,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <portal.h>
+#include <sys/mman.h>
 
 volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
@@ -26,6 +28,7 @@ static void handle_signal(int sig)
 sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
              const std::vector<std::string>& args)
   : //htif(new htif_isasim_t(this, args)), // [sizhuo] create HTIF later 
+        mem(0), memfd(0),
 	procs(std::max(nprocs, size_t(1))),
 	rtc(0), current_step(0), current_proc(0), debug(false), bootrom(0), bootromsz(0), dtb(0), dtbsz(0)
 {
@@ -41,12 +44,20 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
     memsz0 = 1L << (sizeof(size_t) == 8 ? 32 : 30);
 
   memsz = memsz0;
-  while ((mem = (char*)calloc(1, memsz)) == NULL)
-    memsz = memsz*10/11/quantum*quantum;
+  if (0) {
+    while ((mem = (char*)calloc(1, memsz)) == NULL)
+      memsz = memsz*10/11/quantum*quantum;
 
-  if (memsz != memsz0)
-    fprintf(stderr, "warning: only got %lu bytes of target mem (wanted %lu)\n",
-            (unsigned long)memsz, (unsigned long)memsz0);
+    if (memsz != memsz0)
+      fprintf(stderr, "warning: only got %lu bytes of target mem (wanted %lu)\n",
+	      (unsigned long)memsz, (unsigned long)memsz0);
+  } else {
+    memfd = portalAlloc(memsz, 1);
+    mem = (char *)portalMmap(memfd, memsz);
+    if (mem == MAP_FAILED)
+      fprintf(stderr, "warning: only got %lu bytes of target mem (wanted %lu)\n",
+	      (unsigned long)memsz, (unsigned long)memsz0);
+  }
 
   debug_mmu = new mmu_t(mem, memsz);
 
@@ -92,6 +103,7 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
   //bpiFlash = new BpiFlash();
   bpiFlash = 0;
   axiEth = new AxiEth();
+  axiEth->setupDma(memfd);
 
   // [sizhuo] register enq fromhost FIFOs (must be done after procs created)
   // and start HTIF by loading programs etc.
@@ -301,8 +313,9 @@ bool sim_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
     reg_t offset = addr - 0x04200000;
     if ((offset & 3) || (len & 3))
       fprintf(stderr, "%s:%d unaligned addr=%x len=%d\n", __FUNCTION__, __LINE__, addr, len);
+    fprintf(stderr, "axiEth write %08x %08x len=%d\n", offset, *(int *)bytes, len);
     for (size_t i = 0; i < len; i += 4) {
-      axiEth->write(addr - 0x04200000 + i, bytes + i);
+      axiEth->write(offset + i, bytes + i);
     }
     return true;
   }
