@@ -102,8 +102,9 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
 
   //bpiFlash = new BpiFlash();
   bpiFlash = 0;
-  axiEth = new AxiEth();
-  axiEth->setupDma(memfd);
+  spikeHw = new SpikeHw();
+  spikeHw->setupDma(memfd);
+  spikeHw->status();
 
   // [sizhuo] register enq fromhost FIFOs (must be done after procs created)
   // and start HTIF by loading programs etc.
@@ -274,17 +275,17 @@ bool sim_t::mmio_load(reg_t addr, size_t len, uint8_t* bytes)
   }
 
   // flash
-  if (addr >= 0x04200000 && addr < 0x04300000 && axiEth) {
-    reg_t offset = addr - 0x04200000;
+  if (addr >= 0x04200000 && addr < 0x04300000 && spikeHw) {
+    reg_t offset = addr - 0x04200000 + 0x100000;
     bool unaligned = (offset & 3) || (len & 3);
     if (unaligned) {
       uint8_t tmp[2];
       fprintf(stderr, "%s:%d unaligned addr=%x len=%d\n", __FUNCTION__, __LINE__, addr, len);
-      axiEth->read(offset & ~1, tmp);
+      spikeHw->read(offset & ~1, tmp);
       bytes[0] = tmp[1];
     } else {
       for (size_t i = 0; i < len; i += 4) {
-	axiEth->read(offset + i, bytes + i);
+	spikeHw->read(offset + i, bytes + i);
       }
     }
     return true;
@@ -309,13 +310,13 @@ bool sim_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
     }
   }
   // flash
-  if (addr >= 0x04200000 && addr < 0x04300000 && axiEth) {
-    reg_t offset = addr - 0x04200000;
+  if (addr >= 0x04200000 && addr < 0x04300000 && spikeHw) {
+    reg_t offset = addr - 0x04200000 + 0x100000;
     if ((offset & 3) || (len & 3))
       fprintf(stderr, "%s:%d unaligned addr=%x len=%d\n", __FUNCTION__, __LINE__, addr, len);
-    fprintf(stderr, "axiEth write %08x %08x len=%d\n", offset, *(int *)bytes, len);
+    fprintf(stderr, "spikeHw write %08x %08x len=%d\n", offset, *(int *)bytes, len);
     for (size_t i = 0; i < len; i += 4) {
-      axiEth->write(offset + i, bytes + i);
+      spikeHw->write(offset + i, bytes + i);
     }
     return true;
   }

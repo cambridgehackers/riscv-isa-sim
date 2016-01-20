@@ -9,7 +9,7 @@
 #include "processor.h"
 #include "mmu.h"
 #include <bpiflash.h>
-#include <axieth.h>
+#include <spikehw.h>
 
 class htif_isasim_t;
 
@@ -71,7 +71,7 @@ private:
   const char *dtb;
   size_t dtbsz;
   BpiFlash *bpiFlash;
-  AxiEth   *axiEth;
+  SpikeHw   *spikeHw;
 
   // memory-mapped I/O routines
   bool mmio_load(reg_t addr, size_t len, uint8_t* bytes);
