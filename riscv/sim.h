@@ -8,7 +8,6 @@
 #include <memory>
 #include "processor.h"
 #include "mmu.h"
-#include <bpiflash.h>
 #include <spikehw.h>
 
 class htif_isasim_t;
@@ -70,7 +69,6 @@ private:
   size_t bootromsz;
   const char *dtb;
   size_t dtbsz;
-  BpiFlash *bpiFlash;
   SpikeHw   *spikeHw;
 
   // memory-mapped I/O routines

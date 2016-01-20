@@ -100,8 +100,6 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
     fprintf(stderr, "Could not open dtb.bin\n");
   }
 
-  //bpiFlash = new BpiFlash();
-  bpiFlash = 0;
   spikeHw = new SpikeHw();
   spikeHw->setupDma(memfd);
   spikeHw->status();
@@ -274,7 +272,7 @@ bool sim_t::mmio_load(reg_t addr, size_t len, uint8_t* bytes)
     }
   }
 
-  // flash
+  // devices
   if (addr >= 0x04200000 && addr < 0x04300000 && spikeHw) {
     reg_t offset = addr - 0x04200000 + 0x100000;
     bool unaligned = (offset & 3) || (len & 3);
@@ -309,7 +307,7 @@ bool sim_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
       return true;
     }
   }
-  // flash
+  // devices
   if (addr >= 0x04200000 && addr < 0x04300000 && spikeHw) {
     reg_t offset = addr - 0x04200000 + 0x100000;
     if ((offset & 3) || (len & 3))
