@@ -66,7 +66,8 @@ sim_t::~sim_t()
   for (size_t i = 0; i < procs.size(); i++)
     delete procs[i];
   delete debug_mmu;
-  free(mem);
+  if (!allocator)
+    free(mem);
 }
 
 reg_t sim_t::get_scr(int which)
