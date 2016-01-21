@@ -91,4 +91,11 @@ private:
 
 extern volatile bool ctrlc_pressed;
 
+void register_mem_allocator(std::function<char *(size_t)> f);
+
+#define REGISTER_MEM_ALLOCATOR(allocator) \
+  class register_##name { \
+    public: register_##name() { register_mem_allocator(allocator); } \
+  }; static register_##name dummy_##name;
+
 #endif
