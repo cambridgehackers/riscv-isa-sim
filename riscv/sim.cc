@@ -20,6 +20,18 @@ static void handle_signal(int sig)
   signal(sig, &handle_signal);
 }
 
+char *default_allocator(size_t memsz)
+{
+    return (char *)calloc(1, memsz);
+}
+std::function<char *(size_t)> allocator = default_allocator;
+
+void register_mem_allocator(std::function<char *(size_t)> f)
+{
+  fprintf(stderr, "registered memory allocator %p\n", f);
+  allocator = f;
+}
+
 sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
              const std::vector<std::string>& args)
   : htif(new htif_isasim_t(this, args)), procs(std::max(nprocs, size_t(1))),
@@ -34,7 +46,7 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
     memsz0 = 1L << (sizeof(size_t) == 8 ? 32 : 30);
 
   memsz = memsz0;
-  while ((mem = (char*)calloc(1, memsz)) == NULL)
+  while ((mem = allocator(memsz)) == NULL)
     memsz = memsz*10/11/quantum*quantum;
 
   if (memsz != memsz0)
