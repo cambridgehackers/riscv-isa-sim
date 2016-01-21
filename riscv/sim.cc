@@ -28,7 +28,7 @@ std::function<char *(size_t)> allocator = default_allocator;
 
 void register_mem_allocator(std::function<char *(size_t)> f)
 {
-  fprintf(stderr, "registered memory allocator %p\n", f);
+  fprintf(stderr, "registered memory allocator %p\n", &f);
   allocator = f;
 }
 
