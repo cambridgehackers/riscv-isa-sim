@@ -111,6 +111,8 @@ void sim_t::step(size_t n)
         rtc += INTERLEAVE / INSNS_PER_RTC_TICK;
       }
 
+      if (bus.has_interrupt())
+	  procs[current_proc]->raise_interrupt(2);
       htif->tick();
     }
   }

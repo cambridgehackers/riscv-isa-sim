@@ -11,6 +11,7 @@ class abstract_device_t {
   virtual bool load(reg_t addr, size_t len, uint8_t* bytes) = 0;
   virtual bool store(reg_t addr, size_t len, const uint8_t* bytes) = 0;
   virtual ~abstract_device_t() {}
+  virtual bool has_interrupt() { return false; };
 };
 
 class bus_t : public abstract_device_t {
@@ -18,6 +19,7 @@ class bus_t : public abstract_device_t {
   bool load(reg_t addr, size_t len, uint8_t* bytes);
   bool store(reg_t addr, size_t len, const uint8_t* bytes);
   void add_device(reg_t addr, abstract_device_t* dev);
+  bool has_interrupt();
 
  private:
   std::map<reg_t, abstract_device_t*> devices;
